@@ -50,7 +50,7 @@ tasks:
         desc: Run the agent with the test configuration
         cmds:
         - task: build
-        - ${BUILD_PATH} tui --config ${CONFIG_PATH}
+        - ${BUILD_PATH} tui --config ${CONFIG_PATH} --demo
         ignore_error: true
 
     release:

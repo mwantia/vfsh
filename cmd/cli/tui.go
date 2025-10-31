@@ -2,13 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/mwantia/vfs"
-	"github.com/mwantia/vfs/mount"
-	"github.com/mwantia/vfs/mount/backend/ephemeral"
-	"github.com/mwantia/vfs/mount/backend/sqlite"
 	"github.com/mwantia/vfsh/internal/config"
 	"github.com/mwantia/vfsh/internal/tui"
 	"github.com/spf13/cobra"
@@ -16,6 +11,7 @@ import (
 
 func NewTuiCommand() *cobra.Command {
 	var configPath string
+	var demoEnabled bool
 
 	cmd := &cobra.Command{
 		Use:   "tui",
@@ -32,25 +28,15 @@ func NewTuiCommand() *cobra.Command {
 				configPath = path
 			}
 
-			logFilePath := filepath.Join(configPath, "vfsh.log")
-			fs, err := vfs.NewVirtualFileSystem(vfs.WithLogFile(logFilePath), vfs.WithoutTerminalLog())
+			fs, err := initializeVirtualFileSystem(ctx, configPath)
 			if err != nil {
-				return fmt.Errorf("failed to setup vfs: %v", err)
+				return fmt.Errorf("failed to initialize vfs: %v", err)
 			}
 
-			rootDbPath := filepath.Join(configPath, "vfsh.db")
-			root, err := sqlite.NewSQLiteBackend(rootDbPath)
-			if err != nil {
-				return fmt.Errorf("failed to setup vfs: %v", err)
-			}
-
-			if err := fs.Mount(ctx, "/", root, mount.WithMetadata(root), mount.WithNamespace("root")); err != nil {
-				return fmt.Errorf("failed to setup vfs: %v", err)
-			}
-
-			ephemeral := ephemeral.NewEphemeralBackend()
-			if err := fs.Mount(ctx, "/ephemeral", ephemeral); err != nil {
-				return fmt.Errorf("failed to setup vfs: %v", err)
+			if demoEnabled {
+				if err := initializeDemo(ctx, fs); err != nil {
+					return fmt.Errorf("failed to initialize vfs: %v", err)
+				}
 			}
 
 			// Create VFS adapter and TUI model
@@ -71,7 +57,8 @@ func NewTuiCommand() *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().StringVar(&configPath, "config", "", "config path (default is ~/.config/vfsh)")
+	cmd.PersistentFlags().StringVar(&configPath, "config", "", "config path (default: ~/.config/vfsh)")
+	cmd.PersistentFlags().BoolVar(&demoEnabled, "demo", false, "creates a /demo mount if enabled (default: false)")
 
 	return cmd
 }
