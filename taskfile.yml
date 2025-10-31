@@ -1,0 +1,62 @@
+version: '3'
+
+env:
+    CGO_ENABLED: '0'
+    GOOS: linux
+    MAIN_PATH: ./cmd/vfsh/main.go
+    BUILD_PATH: ./build/vfsh
+    CONFIG_PATH: ./test
+
+dotenv: ['.env']
+
+tasks:
+    default:
+        desc: List all available tasks
+        cmds:
+        - task --list
+        silent: true
+
+    setup:
+        desc: Presetup when first creating the project
+        cmds:
+        - sudo apt update
+
+    init:
+        desc: Download and tidy Go module dependencies
+        cmds:
+        - go mod download
+        - go mod tidy
+
+    docs:
+        desc: Generate documentation
+        cmds:
+        - task: build
+        - ${BUILD_PATH} config generate --output docs --overwrite
+        ignore_error: true
+
+    build:
+        desc: Compile the project into a static binary
+        cmds:
+        - task: init
+        - go build -a -ldflags '-s -w -extldflags "-static"' -trimpath -o ${BUILD_PATH} ${MAIN_PATH}
+        
+    build-debug:
+        desc: Compile the project with debug information
+        cmds:
+        - task: init
+        - go build -race -trimpath -o ${BUILD_PATH} ${MAIN_PATH}
+
+    run:
+        desc: Run the agent with the test configuration
+        cmds:
+        - task: build
+        - ${BUILD_PATH} tui --config ${CONFIG_PATH}
+        ignore_error: true
+
+    release:
+        desc: Build and push multi-arch Docker image to registry
+        cmds:
+        - task: init
+        - task: docs
+        - docker buildx create --use --name multi-arch-builder || true
+        - docker login ${DOCKER_REGISTRY} && docker buildx build --push --platform ${DOCKER_PLATFORMS} -t ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_VERSION} -t ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_LATEST} .
